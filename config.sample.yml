@@ -1,0 +1,5 @@
+host: 127.0.0.1 # thing host (default to all IPs)
+port: 8888 # thing port (default 80)
+lat: <latitude for house>
+long: <longitude for house>
+location: <timezone e.g. Europe/Paris>
