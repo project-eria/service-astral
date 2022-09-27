@@ -3,7 +3,7 @@ module service-astral
 go 1.17
 
 require (
-	github.com/go-co-op/gocron v1.13.0
+	github.com/go-co-op/gocron v1.17.0
 	github.com/project-eria/eria-core v1.0.0
 	github.com/project-eria/go-wot v1.0.0
 	github.com/rs/zerolog v1.26.1
@@ -24,7 +24,7 @@ require (
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20220412211240-33da011f77ad // indirect
-	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // replace github.com/project-eria/eria-core => ../eria-core

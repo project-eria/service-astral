@@ -227,7 +227,7 @@ func main() {
 
 	_scheduler = gocron.NewScheduler(_location)
 
-	for key, _ := range _astralTimes {
+	for key := range _astralTimes {
 		_thing.SetEventHandler(key, func() (interface{}, error) {
 			next := _thing.GetPropertyValue("next/" + key)
 			return struct{ next interface{} }{
@@ -237,8 +237,8 @@ func main() {
 		_next[key] = setNext(key)
 	}
 
-	// Update the "/today" values each morning at 4:00
-	_scheduler.Every(1).Day().At("04:00").
+	// Update the "/today" values each morning at 0:00
+	_scheduler.Every(1).Day().At("0:00").
 		Tag("main").
 		StartImmediately().
 		Do(updateToday)
