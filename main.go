@@ -4,13 +4,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/project-eria/go-wot/dataSchema"
+	"github.com/project-eria/go-wot/interaction"
+	"github.com/project-eria/go-wot/producer"
 	"github.com/project-eria/go-wot/thing"
 
 	"github.com/go-co-op/gocron"
 
 	eria "github.com/project-eria/eria-core"
-	"github.com/project-eria/eria-core/model"
-	"github.com/rs/zerolog/log"
+	eriaproducer "github.com/project-eria/eria-core/producer"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/sj14/astral"
 )
 
@@ -24,11 +27,12 @@ var (
 	// Version is a placeholder that will receive the git tag version during build time
 	Version      = "-"
 	_location    *time.Location
-	_thing       *eria.EriaThing
+	_thing       producer.ExposedThing
 	_scheduler   *gocron.Scheduler
 	_observer    astral.Observer
 	_astralTimes map[string]AstralInfo
 	_next        map[string]*gocron.Job
+	_producer    *eriaproducer.EriaProducer
 )
 
 var config = struct {
@@ -41,12 +45,16 @@ var config = struct {
 }{}
 
 func init() {
-	eria.Init("ERIA Ephemeris Info", Version)
+	defer func() {
+		zlog.Info().Msg("[main] Stopped")
+	}()
+
+	eria.Init("ERIA Ephemeris Info")
 	// Loading config
 	eria.LoadConfig(&config)
 	location, err := time.LoadLocation(config.Location)
 	if err != nil {
-		log.Error().Err(err).Msg("[init]")
+		zlog.Error().Err(err).Msg("[init]")
 		return
 	}
 	_location = location
@@ -58,7 +66,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dawn(_observer, t, astral.DepressionAstronomical)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:dawnAstronomical]")
+					zlog.Error().Err(err).Msg("[init:dawnAstronomical]")
 				}
 				return value
 			},
@@ -69,7 +77,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dawn(_observer, t, astral.DepressionNautical)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:dawnNautical]")
+					zlog.Error().Err(err).Msg("[init:dawnNautical]")
 				}
 				return value
 			},
@@ -80,7 +88,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dawn(_observer, t, astral.DepressionCivil)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:dawnCivil]")
+					zlog.Error().Err(err).Msg("[init:dawnCivil]")
 				}
 				return value
 			},
@@ -91,7 +99,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, _, err := astral.GoldenHour(_observer, t, astral.SunDirectionRising)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:goldenHourRisingStart]")
+					zlog.Error().Err(err).Msg("[init:goldenHourRisingStart]")
 				}
 				return value
 			},
@@ -102,7 +110,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Sunrise(_observer, t)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:sunrise]")
+					zlog.Error().Err(err).Msg("[init:sunrise]")
 				}
 				return value
 			},
@@ -113,7 +121,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				_, value, err := astral.GoldenHour(_observer, t, astral.SunDirectionRising)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:goldenHourRisingEnd]")
+					zlog.Error().Err(err).Msg("[init:goldenHourRisingEnd]")
 				}
 				return value
 			},
@@ -132,7 +140,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, _, err := astral.GoldenHour(_observer, t, astral.SunDirectionSetting)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:goldenHourSettingStart]")
+					zlog.Error().Err(err).Msg("[init:goldenHourSettingStart]")
 				}
 				return value
 			},
@@ -143,7 +151,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Sunset(_observer, t)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:sunset]")
+					zlog.Error().Err(err).Msg("[init:sunset]")
 				}
 				return value
 			},
@@ -154,7 +162,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				_, value, err := astral.GoldenHour(_observer, t, astral.SunDirectionSetting)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:goldenHourSettingEnd]")
+					zlog.Error().Err(err).Msg("[init:goldenHourSettingEnd]")
 				}
 				return value
 			},
@@ -165,7 +173,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dusk(_observer, t, astral.DepressionCivil)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:duskCivil]")
+					zlog.Error().Err(err).Msg("[init:duskCivil]")
 				}
 				return value
 			},
@@ -176,7 +184,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dusk(_observer, t, astral.DepressionNautical)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:duskNautical]")
+					zlog.Error().Err(err).Msg("[init:duskNautical]")
 				}
 				return value
 			},
@@ -187,7 +195,7 @@ func init() {
 			getter: func(t time.Time) time.Time {
 				value, err := astral.Dusk(_observer, t, astral.DepressionAstronomical)
 				if err != nil {
-					log.Error().Err(err).Msg("[init:duskAstronomical]")
+					zlog.Error().Err(err).Msg("[init:duskAstronomical]")
 				}
 				return value
 			},
@@ -206,10 +214,8 @@ func init() {
 
 func main() {
 	defer func() {
-		log.Info().Msg("[main] Stopped")
+		zlog.Info().Msg("[main] Stopped")
 	}()
-
-	eriaServer := eria.NewServer(config.Host, config.Port, config.ExposedAddr)
 
 	td, _ := eria.NewThingDescription(
 		"eria:service:astral:1",
@@ -222,14 +228,16 @@ func main() {
 	for key, astralTime := range _astralTimes {
 		setInteraction(td, key, astralTime.name, astralTime.desc)
 	}
+	_producer = eria.Producer("")
+	_thing, _ = _producer.AddThing("", td)
 
-	_thing, _ = eriaServer.AddThing("", td)
-
-	_scheduler = gocron.NewScheduler(_location)
+	_scheduler = eria.GetCronScheduler()
 
 	for key := range _astralTimes {
+		_producer.PropertyUseDefaultHandlers(_thing, "today/"+key)
+		_producer.PropertyUseDefaultHandlers(_thing, "next/"+key)
 		_thing.SetEventHandler(key, func() (interface{}, error) {
-			next := _thing.GetPropertyValue("next/" + key)
+			next := _producer.GetPropertyValue(_thing, "next/"+key)
 			return struct{ next interface{} }{
 				next: next,
 			}, nil
@@ -248,39 +256,51 @@ func main() {
 	for _, job := range _scheduler.Jobs() {
 		fmt.Println(job.Tags(), job.NextRun())
 	}
-	eriaServer.StartServer()
+	eria.Start("")
 }
 
 func updateToday() {
-	log.Trace().Msg("[main:updateToday]")
+	zlog.Trace().Msg("[main:updateToday]")
 
 	today := time.Now().In(_location)
 	for key, astralTime := range _astralTimes {
 		t := astralTime.getter(today)
 		//		tStr := t.Format("15:04")
 		tStr := t.Format("2006-01-02 15:04")
-		_thing.SetPropertyValue("today/"+key, tStr)
+		_producer.SetPropertyValue(_thing, "today/"+key, tStr)
 	}
 }
 
 func setInteraction(td *thing.Thing, key string, name string, description string) {
-	eria.AddProperty(td, "today/"+key, "-", model.PropertyDesc{
-		Title:       "Today " + name + " Hour",
-		Description: "Today hour when " + description,
-		Type:        "string",
-		Pattern:     "[0-1]{1}[0-9]{1}:[0-5]{1}[0-9]{1}",
-	})
+	dateString := dataSchema.NewString("", 0, 0, "[0-1]{1}[0-9]{1}:[0-5]{1}[0-9]{1}")
+	td.AddProperty(interaction.NewProperty(
+		"today/"+key,
+		"Today "+name+" Hour",
+		"Today hour when "+description,
+		true,
+		false,
+		true,
+		nil,
+		dateString,
+	))
 
-	eria.AddProperty(td, "next/"+key, "-", model.PropertyDesc{
-		Title:       "Next " + name + " Time",
-		Description: "Next time when " + description,
-		Type:        "string",
-	})
+	td.AddProperty(interaction.NewProperty(
+		"next/"+key,
+		"Next "+name+" Time",
+		"Next time when "+description,
+		true,
+		false,
+		true,
+		nil,
+		dateString,
+	))
 
-	eria.AddEvent(td, key, model.EventDesc{
-		Title:       name,
-		Description: description,
-	})
+	td.AddEvent(interaction.NewEvent(
+		key,
+		name,
+		description,
+		&dateString,
+	))
 }
 
 func setNext(key string) *gocron.Job {
@@ -302,15 +322,15 @@ func setNext(key string) *gocron.Job {
 	// * * * * *
 	cronStr := t.Format("04 15 02 01 *")
 	tStr := t.Format("2006-01-02 15:04")
-	_thing.SetPropertyValue("next/"+key, tStr)
+	_producer.SetPropertyValue(_thing, "next/"+key, tStr)
 	j, _ := _scheduler.Cron(cronStr).Tag(key).Do(func(key string) {
-		_thing.EmitEvent(key)
+		_thing.EmitEvent(key, nil)
 		tomorrow := now.Add(24 * time.Hour)
 		t = _astralTimes[key].getter(tomorrow)
 		cronStr := t.Format("04 15 02 01 *")
 		_scheduler.Job(_next[key]).Cron(cronStr).Update()
 		tStr := t.Format("2006-01-02 15:04")
-		_thing.SetPropertyValue("next/"+key, tStr)
+		_producer.SetPropertyValue(_thing, "next/"+key, tStr)
 		for _, job := range _scheduler.Jobs() {
 			fmt.Println(job.Tags(), job.NextRun())
 		}
