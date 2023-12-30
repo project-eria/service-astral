@@ -1,7 +1,8 @@
 package main
 
 import (
-	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/project-eria/go-wot/dataSchema"
@@ -228,6 +229,19 @@ func main() {
 	for key, astralTime := range _astralTimes {
 		setInteraction(td, key, astralTime.name, astralTime.desc)
 	}
+
+	// Add the "jobs" property
+	td.AddProperty(interaction.NewProperty(
+		"jobs",
+		"Scheduled Jobs",
+		"Scheduled Jobs sorted by hours",
+		true,
+		false,
+		false,
+		nil,
+		dataSchema.NewObject(nil),
+	))
+
 	_producer = eria.Producer("")
 	_thing, _ = _producer.AddThing("", td)
 
@@ -244,18 +258,22 @@ func main() {
 		})
 		_next[key] = setNext(key)
 	}
+	_thing.SetPropertyReadHandler("jobs", func(producer.ExposedThing, string, map[string]interface{}) (interface{}, error) {
+		hours, _ := getJobs()
+		// Note: "The map keys are sorted and used as JSON object keys"
+		// https://pkg.go.dev/encoding/json#Marshal
+		return hours, nil
+	})
 
 	// Update the "/today" values each morning at 0:00
 	_scheduler.Every(1).Day().At("0:00").
+		Tag("refresh").
 		Tag("main").
 		StartImmediately().
 		Do(updateToday)
 
 	_scheduler.StartAsync()
 
-	for _, job := range _scheduler.Jobs() {
-		fmt.Println(job.Tags(), job.NextRun())
-	}
 	eria.Start("")
 }
 
@@ -323,7 +341,7 @@ func setNext(key string) *gocron.Job {
 	cronStr := t.Format("04 15 02 01 *")
 	tStr := t.Format("2006-01-02 15:04")
 	_producer.SetPropertyValue(_thing, "next/"+key, tStr)
-	j, _ := _scheduler.Cron(cronStr).Tag(key).Do(func(key string) {
+	j, _ := _scheduler.Cron(cronStr).Tag(key).Tag("main").Do(func(key string) {
 		_thing.EmitEvent(key, nil)
 		tomorrow := now.Add(24 * time.Hour)
 		t = _astralTimes[key].getter(tomorrow)
@@ -331,10 +349,22 @@ func setNext(key string) *gocron.Job {
 		_scheduler.Job(_next[key]).Cron(cronStr).Update()
 		tStr := t.Format("2006-01-02 15:04")
 		_producer.SetPropertyValue(_thing, "next/"+key, tStr)
-		for _, job := range _scheduler.Jobs() {
-			fmt.Println(job.Tags(), job.NextRun())
-		}
 	}, key)
 
 	return j
+}
+
+func getJobs() (map[string]string, []string) {
+	hours := map[string]string{}
+	keys := []string{}
+	for _, job := range _scheduler.Jobs() {
+		if !strings.Contains(job.Tags()[0], "refresh") {
+			nextTime := job.NextRun().In(_location).Format("2006-01-02 15:04:05")
+			hours[nextTime] = job.Tags()[0]
+			keys = append(keys, nextTime)
+		}
+	}
+
+	sort.Strings(keys)
+	return hours, keys
 }
