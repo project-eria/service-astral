@@ -269,7 +269,7 @@ func updateToday() {
 	for key, astralTime := range _astralTimes {
 		t := astralTime.getter(today)
 		//		tStr := t.Format("15:04")
-		tStr := t.Format("2006-01-02 15:04")
+		tStr := t.Format(time.RFC3339)
 		eriaProducer.SetPropertyValue(_thing, "today/"+key, tStr)
 	}
 }
@@ -320,7 +320,7 @@ func setNext(key string) *gocron.Job {
 	// | | | | |
 	// * * * * *
 	cronStr := t.Format("04 15 02 01 *")
-	tStr := t.Format("2006-01-02 15:04")
+	tStr := t.Format(time.RFC3339)
 	eriaProducer := eria.Producer("")
 	eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
 	scheduler := eria.GetCronScheduler()
@@ -330,7 +330,7 @@ func setNext(key string) *gocron.Job {
 		t = _astralTimes[key].getter(tomorrow)
 		cronStr := t.Format("04 15 02 01 *")
 		scheduler.Job(_next[key]).Cron(cronStr).Update()
-		tStr := t.Format("2006-01-02 15:04")
+		tStr := t.Format(time.RFC3339)
 		eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
 	}, key)
 
