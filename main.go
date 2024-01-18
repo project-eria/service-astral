@@ -9,13 +9,12 @@ import (
 	"github.com/project-eria/go-wot/interaction"
 	"github.com/project-eria/go-wot/producer"
 	"github.com/project-eria/go-wot/thing"
+	"github.com/sj14/astral/pkg/astral"
 
 	"github.com/go-co-op/gocron"
 
 	eria "github.com/project-eria/eria-core"
-	eriaproducer "github.com/project-eria/eria-core/producer"
 	zlog "github.com/rs/zerolog/log"
-	"github.com/sj14/astral"
 )
 
 type AstralInfo struct {
@@ -27,13 +26,10 @@ type AstralInfo struct {
 var (
 	// Version is a placeholder that will receive the git tag version during build time
 	Version      = "-"
-	_location    *time.Location
 	_thing       producer.ExposedThing
-	_scheduler   *gocron.Scheduler
 	_observer    astral.Observer
 	_astralTimes map[string]AstralInfo
 	_next        map[string]*gocron.Job
-	_producer    *eriaproducer.EriaProducer
 )
 
 var config = struct {
@@ -50,18 +46,10 @@ func init() {
 		zlog.Info().Msg("[main] Stopped")
 	}()
 
-	eria.Init("ERIA Ephemeris Info")
-	// Loading config
-	eria.LoadConfig(&config)
-	location, err := time.LoadLocation(config.Location)
-	if err != nil {
-		zlog.Error().Err(err).Msg("[init]")
-		return
-	}
-	_location = location
+	eria.Init("ERIA Ephemeris Info", &config)
 	_observer = astral.Observer{Latitude: config.Lat, Longitude: config.Long, Elevation: 0}
 	_astralTimes = map[string]AstralInfo{
-		"dawnAstronomical": AstralInfo{
+		"dawnAstronomical": {
 			name: "Dawn (Astronomical)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -72,7 +60,7 @@ func init() {
 				return value
 			},
 		},
-		"dawnNautical": AstralInfo{
+		"dawnNautical": {
 			name: "Dawn (Nautical)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -83,7 +71,7 @@ func init() {
 				return value
 			},
 		},
-		"dawnCivil": AstralInfo{
+		"dawnCivil": {
 			name: "Dawn (Civil)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -94,7 +82,7 @@ func init() {
 				return value
 			},
 		},
-		"goldenHourRisingStart": AstralInfo{
+		"goldenHourRisingStart": {
 			name: "Golden Hour Start (Rising)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -105,7 +93,7 @@ func init() {
 				return value
 			},
 		},
-		"sunrise": AstralInfo{
+		"sunrise": {
 			name: "Sunrise",
 			desc: "the Sun appears on the horizon in the morning",
 			getter: func(t time.Time) time.Time {
@@ -116,7 +104,7 @@ func init() {
 				return value
 			},
 		},
-		"goldenHourRisingEnd": AstralInfo{
+		"goldenHourRisingEnd": {
 			name: "Golden Hour End (Rising)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -127,7 +115,7 @@ func init() {
 				return value
 			},
 		},
-		"noon": AstralInfo{
+		"noon": {
 			name: "noon",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -135,7 +123,7 @@ func init() {
 				return value
 			},
 		},
-		"goldenHourSettingStart": AstralInfo{
+		"goldenHourSettingStart": {
 			name: "Golden Hour Start (Setting)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -146,7 +134,7 @@ func init() {
 				return value
 			},
 		},
-		"sunset": AstralInfo{
+		"sunset": {
 			name: "Sunset",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -157,7 +145,7 @@ func init() {
 				return value
 			},
 		},
-		"goldenHourSettingEnd": AstralInfo{
+		"goldenHourSettingEnd": {
 			name: "Golden Hour End (Setting)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -168,7 +156,7 @@ func init() {
 				return value
 			},
 		},
-		"duskCivil": AstralInfo{
+		"duskCivil": {
 			name: "Dusk (Civil)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -179,7 +167,7 @@ func init() {
 				return value
 			},
 		},
-		"duskNautical": AstralInfo{
+		"duskNautical": {
 			name: "Dusk (Nautical)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -190,7 +178,7 @@ func init() {
 				return value
 			},
 		},
-		"duskAstronomical": AstralInfo{
+		"duskAstronomical": {
 			name: "Dusk (Astronomical)",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -201,7 +189,7 @@ func init() {
 				return value
 			},
 		},
-		"midnight": AstralInfo{
+		"midnight": {
 			name: "Midnight",
 			desc: "",
 			getter: func(t time.Time) time.Time {
@@ -231,27 +219,24 @@ func main() {
 	}
 
 	// Add the "jobs" property
+	jobs, _ := dataSchema.NewObject()
 	td.AddProperty(interaction.NewProperty(
 		"jobs",
 		"Scheduled Jobs",
 		"Scheduled Jobs sorted by hours",
-		true,
-		false,
-		false,
-		nil,
-		dataSchema.NewObject(nil),
+		jobs,
+		interaction.PropertyReadOnly(true),
+		interaction.PropertyObservable(false),
 	))
 
-	_producer = eria.Producer("")
-	_thing, _ = _producer.AddThing("", td)
-
-	_scheduler = eria.GetCronScheduler()
+	eriaProducer := eria.Producer("")
+	_thing, _ = eriaProducer.AddThing("", td)
 
 	for key := range _astralTimes {
-		_producer.PropertyUseDefaultHandlers(_thing, "today/"+key)
-		_producer.PropertyUseDefaultHandlers(_thing, "next/"+key)
+		eriaProducer.PropertyUseDefaultHandlers(_thing, "today/"+key)
+		eriaProducer.PropertyUseDefaultHandlers(_thing, "next/"+key)
 		_thing.SetEventHandler(key, func() (interface{}, error) {
-			next := _producer.GetPropertyValue(_thing, "next/"+key)
+			next := eriaProducer.GetPropertyValue(_thing, "next/"+key)
 			return struct{ next interface{} }{
 				next: next,
 			}, nil
@@ -265,14 +250,13 @@ func main() {
 		return hours, nil
 	})
 
+	scheduler := eria.GetCronScheduler()
 	// Update the "/today" values each morning at 0:00
-	_scheduler.Every(1).Day().At("0:00").
+	scheduler.Every(1).Day().At("0:00").
 		Tag("refresh").
 		Tag("main").
 		StartImmediately().
 		Do(updateToday)
-
-	_scheduler.StartAsync()
 
 	eria.Start("")
 }
@@ -280,49 +264,46 @@ func main() {
 func updateToday() {
 	zlog.Trace().Msg("[main:updateToday]")
 
-	today := time.Now().In(_location)
+	today := time.Now().In(eria.Location())
+	eriaProducer := eria.Producer("")
 	for key, astralTime := range _astralTimes {
 		t := astralTime.getter(today)
 		//		tStr := t.Format("15:04")
 		tStr := t.Format("2006-01-02 15:04")
-		_producer.SetPropertyValue(_thing, "today/"+key, tStr)
+		eriaProducer.SetPropertyValue(_thing, "today/"+key, tStr)
 	}
 }
 
 func setInteraction(td *thing.Thing, key string, name string, description string) {
-	dateString := dataSchema.NewString("", 0, 0, "[0-1]{1}[0-9]{1}:[0-5]{1}[0-9]{1}")
+	dateString, _ := dataSchema.NewString(
+		dataSchema.StringPattern("[0-1]{1}[0-9]{1}:[0-5]{1}[0-9]{1}"),
+	)
 	td.AddProperty(interaction.NewProperty(
 		"today/"+key,
 		"Today "+name+" Hour",
 		"Today hour when "+description,
-		true,
-		false,
-		true,
-		nil,
 		dateString,
+		interaction.PropertyReadOnly(true),
 	))
 
 	td.AddProperty(interaction.NewProperty(
 		"next/"+key,
 		"Next "+name+" Time",
 		"Next time when "+description,
-		true,
-		false,
-		true,
-		nil,
 		dateString,
+		interaction.PropertyReadOnly(true),
 	))
 
 	td.AddEvent(interaction.NewEvent(
 		key,
 		name,
 		description,
-		&dateString,
+		interaction.EventData(&dateString),
 	))
 }
 
 func setNext(key string) *gocron.Job {
-	now := time.Now().In(_location)
+	now := time.Now().In(eria.Location())
 	tomorrow := now.Add(24 * time.Hour)
 
 	t := _astralTimes[key].getter(now)
@@ -340,15 +321,17 @@ func setNext(key string) *gocron.Job {
 	// * * * * *
 	cronStr := t.Format("04 15 02 01 *")
 	tStr := t.Format("2006-01-02 15:04")
-	_producer.SetPropertyValue(_thing, "next/"+key, tStr)
-	j, _ := _scheduler.Cron(cronStr).Tag(key).Tag("main").Do(func(key string) {
+	eriaProducer := eria.Producer("")
+	eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
+	scheduler := eria.GetCronScheduler()
+	j, _ := scheduler.Cron(cronStr).Tag(key).Tag("main").Do(func(key string) {
 		_thing.EmitEvent(key, nil)
 		tomorrow := now.Add(24 * time.Hour)
 		t = _astralTimes[key].getter(tomorrow)
 		cronStr := t.Format("04 15 02 01 *")
-		_scheduler.Job(_next[key]).Cron(cronStr).Update()
+		scheduler.Job(_next[key]).Cron(cronStr).Update()
 		tStr := t.Format("2006-01-02 15:04")
-		_producer.SetPropertyValue(_thing, "next/"+key, tStr)
+		eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
 	}, key)
 
 	return j
@@ -357,9 +340,10 @@ func setNext(key string) *gocron.Job {
 func getJobs() (map[string]string, []string) {
 	hours := map[string]string{}
 	keys := []string{}
-	for _, job := range _scheduler.Jobs() {
+	scheduler := eria.GetCronScheduler()
+	for _, job := range scheduler.Jobs() {
 		if !strings.Contains(job.Tags()[0], "refresh") {
-			nextTime := job.NextRun().In(_location).Format("2006-01-02 15:04:05")
+			nextTime := job.NextRun().In(eria.Location()).Format("2006-01-02 15:04:05")
 			hours[nextTime] = job.Tags()[0]
 			keys = append(keys, nextTime)
 		}
