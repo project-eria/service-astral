@@ -1,8 +1,6 @@
 package main
 
 import (
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/project-eria/go-wot/dataSchema"
@@ -11,7 +9,7 @@ import (
 	"github.com/project-eria/go-wot/thing"
 	"github.com/sj14/astral/pkg/astral"
 
-	"github.com/go-co-op/gocron"
+	"github.com/go-co-op/gocron/v2"
 
 	eria "github.com/project-eria/eria-core"
 	zlog "github.com/rs/zerolog/log"
@@ -29,7 +27,6 @@ var (
 	_thing       producer.ExposedThing
 	_observer    astral.Observer
 	_astralTimes map[string]AstralInfo
-	_next        map[string]*gocron.Job
 )
 
 var config = struct {
@@ -198,7 +195,6 @@ func init() {
 			},
 		},
 	}
-	_next = map[string]*gocron.Job{}
 }
 
 func main() {
@@ -218,17 +214,6 @@ func main() {
 		setInteraction(td, key, astralTime.name, astralTime.desc)
 	}
 
-	// Add the "jobs" property
-	jobs, _ := dataSchema.NewObject()
-	td.AddProperty(interaction.NewProperty(
-		"jobs",
-		"Scheduled Jobs",
-		"Scheduled Jobs sorted by hours",
-		jobs,
-		interaction.PropertyReadOnly(true),
-		interaction.PropertyObservable(false),
-	))
-
 	eriaProducer := eria.Producer("")
 	_thing, _ = eriaProducer.AddThing("", td)
 
@@ -241,34 +226,34 @@ func main() {
 				next: next,
 			}, nil
 		})
-		_next[key] = setNext(key)
+		initNext(key)
 	}
-	_thing.SetPropertyReadHandler("jobs", func(producer.ExposedThing, string, map[string]interface{}) (interface{}, error) {
-		hours, _ := getJobs()
-		// Note: "The map keys are sorted and used as JSON object keys"
-		// https://pkg.go.dev/encoding/json#Marshal
-		return hours, nil
-	})
 
 	scheduler := eria.GetCronScheduler()
+
 	// Update the "/today" values each morning at 0:00
-	scheduler.Every(1).Day().At("0:00").
-		Tag("refresh").
-		Tag("main").
-		StartImmediately().
-		Do(updateToday)
+	scheduler.NewJob(
+		gocron.DailyJob(
+			1,
+			gocron.NewAtTimes(
+				gocron.NewAtTime(0, 0, 0),
+			),
+		),
+		gocron.NewTask(updateToday),
+		gocron.WithTags("refresh", "main"),
+		gocron.WithStartAt(
+			gocron.WithStartImmediately(),
+		),
+	)
 
 	eria.Start("")
 }
 
 func updateToday() {
-	zlog.Trace().Msg("[main:updateToday]")
-
 	today := time.Now().In(eria.Location())
 	eriaProducer := eria.Producer("")
 	for key, astralTime := range _astralTimes {
 		t := astralTime.getter(today)
-		//		tStr := t.Format("15:04")
 		tStr := t.Format(time.RFC3339)
 		eriaProducer.SetPropertyValue(_thing, "today/"+key, tStr)
 	}
@@ -302,53 +287,38 @@ func setInteraction(td *thing.Thing, key string, name string, description string
 	))
 }
 
-func setNext(key string) *gocron.Job {
+func initNext(key string) {
 	now := time.Now().In(eria.Location())
-	tomorrow := now.Add(24 * time.Hour)
-
 	t := _astralTimes[key].getter(now)
-
 	if t.Before(now) {
+		tomorrow := now.Add(24 * time.Hour)
 		t = _astralTimes[key].getter(tomorrow)
 	}
 
-	// .---------------- minute (0 - 59)
-	// | .-------------- hour (0 - 23)
-	// | | .------------ day of month (1 - 31)
-	// | | | .---------- month (1 - 12) OR jan,feb,mar ...
-	// | | | | .-------- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue ...
-	// | | | | |
-	// * * * * *
-	cronStr := t.Format("04 15 02 01 *")
+	setNext(key, t)
+}
+
+func runNext(key string) {
+	zlog.Trace().Str("time", key).Msg("[main:runNext]")
+	_thing.EmitEvent(key, nil)
+	now := time.Now().In(eria.Location())
+	tomorrow := now.Add(24 * time.Hour)
+	t := _astralTimes[key].getter(tomorrow)
+
+	setNext(key, t)
+}
+
+func setNext(key string, t time.Time) {
 	tStr := t.Format(time.RFC3339)
 	eriaProducer := eria.Producer("")
 	eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
 	scheduler := eria.GetCronScheduler()
-	j, _ := scheduler.Cron(cronStr).Tag(key).Tag("main").Do(func(key string) {
-		_thing.EmitEvent(key, nil)
-		tomorrow := now.Add(24 * time.Hour)
-		t = _astralTimes[key].getter(tomorrow)
-		cronStr := t.Format("04 15 02 01 *")
-		scheduler.Job(_next[key]).Cron(cronStr).Update()
-		tStr := t.Format(time.RFC3339)
-		eriaProducer.SetPropertyValue(_thing, "next/"+key, tStr)
-	}, key)
 
-	return j
-}
-
-func getJobs() (map[string]string, []string) {
-	hours := map[string]string{}
-	keys := []string{}
-	scheduler := eria.GetCronScheduler()
-	for _, job := range scheduler.Jobs() {
-		if !strings.Contains(job.Tags()[0], "refresh") {
-			nextTime := job.NextRun().In(eria.Location()).Format("2006-01-02 15:04:05")
-			hours[nextTime] = job.Tags()[0]
-			keys = append(keys, nextTime)
-		}
-	}
-
-	sort.Strings(keys)
-	return hours, keys
+	scheduler.NewJob(
+		gocron.OneTimeJob(
+			gocron.OneTimeJobStartDateTime(t),
+		),
+		gocron.NewTask(runNext, key),
+		gocron.WithTags(key, "main"),
+	)
 }
