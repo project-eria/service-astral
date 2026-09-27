@@ -1,0 +1,17 @@
+# ERIA package description (orchestrator catalog, eria-manager DESIGN §12.3)
+name: service-astral
+title: Éphémérides
+description: Heures solaires du jour (aube, lever, heure dorée, coucher, crépuscule) et événements associés
+kind: service
+requires: []
+
+exec:
+  args: ["--config-path", "{config}"]
+  health: { url: "http://127.0.0.1:{port}/eria", grace: 20s, interval: 10s }
+
+config: |
+  host: 0.0.0.0
+  port: 8101
+  location: Europe/Paris
+  lat: <latitude>
+  long: <longitude>

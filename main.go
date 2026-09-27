@@ -22,20 +22,14 @@ type AstralInfo struct {
 }
 
 var (
-	// Version is a placeholder that will receive the git tag version during build time
-	Version      = "-"
 	_thing       producer.ExposedThing
 	_observer    astral.Observer
 	_astralTimes map[string]AstralInfo
 )
 
 var config = struct {
-	Host        string  `yaml:"host"`
-	Port        uint    `yaml:"port" default:"80"`
-	ExposedAddr string  `yaml:"exposedAddr"`
-	Lat         float64 `yaml:"lat" required:"true"`
-	Long        float64 `yaml:"long" required:"true"`
-	Location    string  `yaml:"location" required:"true"`
+	Lat  float64 `yaml:"lat" required:"true"`
+	Long float64 `yaml:"long" required:"true"`
 }{}
 
 func init() {
@@ -204,7 +198,7 @@ func main() {
 
 	td, _ := eria.NewThingDescription(
 		"eria:service:astral:1",
-		Version,
+		eria.AppVersion,
 		"Astral",
 		"Calculations for the position of the sun and moon",
 		[]string{},
