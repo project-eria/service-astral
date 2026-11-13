@@ -1,4 +1,4 @@
-# ERIA package description (orchestrator catalog, eria-manager DESIGN §12.3)
+# ERIA package description (orchestrator catalog, eria-coordinator DESIGN §12.3)
 name: service-astral
 title: Éphémérides
 description: Heures solaires du jour (aube, lever, heure dorée, coucher, crépuscule) et événements associés
