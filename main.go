@@ -204,9 +204,17 @@ func main() {
 		[]string{},
 	)
 
+	var today, next, events []string
 	for key, astralTime := range _astralTimes {
 		setInteraction(td, key, astralTime.name, astralTime.desc)
+		today = append(today, "property/today/"+key+"/read")
+		next = append(next, "property/next/"+key+"/read")
+		events = append(events, "event/"+key+"/read")
 	}
+	// Groups the admin rules at once (AUTH-DESIGN §2.4); auth sorts them.
+	td.AddGroup("today", "Heures du jour", today...)
+	td.AddGroup("next", "Prochaines heures", next...)
+	td.AddGroup("events", "Événements solaires", events...)
 
 	eriaProducer := eria.Producer("")
 	_thing, _ = eriaProducer.AddThing("", td)
