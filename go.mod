@@ -4,8 +4,8 @@ go 1.26.5
 
 require (
 	github.com/go-co-op/gocron/v2 v2.22.0
-	github.com/project-eria/eria-core v1.23.1
-	github.com/project-eria/go-wot v1.16.1
+	github.com/project-eria/eria-core v1.23.3
+	github.com/project-eria/go-wot v1.16.2
 	github.com/rs/zerolog v1.35.1
 	github.com/sj14/astral v0.2.3
 )
