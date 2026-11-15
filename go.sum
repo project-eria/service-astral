@@ -54,8 +54,8 @@ github.com/molecule-man/go-brrr v1.1.1 h1:KYwusQhjtV3smALnhmafZf4OBrh7vP4p8O47Dy
 github.com/molecule-man/go-brrr v1.1.1/go.mod h1:7ybW6/7gA3oKY45jOfVNjSJDtrr6ea4tzbsTkjmQDC4=
 github.com/project-eria/eria-core v1.23.1 h1:XWLmgN0PUlVAAR+C4z8QUw7mcVIozyTSuadUrRags0w=
 github.com/project-eria/eria-core v1.23.1/go.mod h1:MNRB6GoU5XJcGe7oc9AgZ/dVQ/VdPo6ltfpJuLTtBdI=
-github.com/project-eria/go-wot v1.16.0 h1:EDQ7C0weDkHVTnrz4V1DkdZI5c/sgFSrA9tiGUBCvgY=
-github.com/project-eria/go-wot v1.16.0/go.mod h1:1kEYDHwaCl339L5a5/LfKNa8vq4EKqzf4diQPZo6hes=
+github.com/project-eria/go-wot v1.16.1 h1:YomsApAV4CIbDTwm2tmEbSL97HN0FDklkmuVJ3o2uy4=
+github.com/project-eria/go-wot v1.16.1/go.mod h1:1kEYDHwaCl339L5a5/LfKNa8vq4EKqzf4diQPZo6hes=
 github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
 github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/go-internal v1.15.0 h1:D0RCU5rMAp+SpgkiNdrjfJ+LX4J1M32V2NeCY7EJ6hc=
